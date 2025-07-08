@@ -151,13 +151,13 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
           <div className="flex items-center space-x-3">
             <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
               <span className="text-lg font-semibold text-primary">
-                {interview.candidateName.split(' ').map(n => n[0]).join('')}
+                {interview.candidateName?.split(' ').map(n => n[0]).join('') || 'N/A'}
               </span>
             </div>
             <div>
-              <p className="font-medium text-text-primary">{interview.candidateName}</p>
+              <p className="font-medium text-text-primary">{interview.candidateName || 'Unknown'}</p>
               <p className="text-sm text-text-secondary">
-                {getLanguageName(interview.language)} • {formatDuration(duration)} elapsed
+                {getLanguageName(interview.language || 'hi-IN')} • {formatDuration(duration)} elapsed
               </p>
             </div>
           </div>

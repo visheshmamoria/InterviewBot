@@ -18,8 +18,11 @@ export function useInterview(id?: number) {
 
   const createInterviewMutation = useMutation({
     mutationFn: async (data: InsertInterview) => {
-      const response = await apiRequest("POST", "/api/interviews", data);
-      return response.json();
+      return await apiRequest("/api/interviews", {
+        method: "POST",
+        body: JSON.stringify(data),
+        headers: { "Content-Type": "application/json" },
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
@@ -28,8 +31,9 @@ export function useInterview(id?: number) {
 
   const startInterviewMutation = useMutation({
     mutationFn: async (interviewId: number) => {
-      const response = await apiRequest("POST", `/api/interviews/${interviewId}/start`);
-      return response.json();
+      return await apiRequest(`/api/interviews/${interviewId}/start`, {
+        method: "POST",
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
@@ -38,8 +42,9 @@ export function useInterview(id?: number) {
 
   const endInterviewMutation = useMutation({
     mutationFn: async (interviewId: number) => {
-      const response = await apiRequest("POST", `/api/interviews/${interviewId}/end`);
-      return response.json();
+      return await apiRequest(`/api/interviews/${interviewId}/end`, {
+        method: "POST",
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/interviews"] });
