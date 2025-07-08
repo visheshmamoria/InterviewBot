@@ -5,10 +5,11 @@ import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Mic, MicOff, Square, Pause, Play, SkipForward, Send } from "lucide-react";
+import { Mic, MicOff, Square, Pause, Play, SkipForward, Send, Volume2 } from "lucide-react";
 import { VoiceWave } from "./VoiceWave";
 import { useInterview } from "@/hooks/useInterview";
 import { useVapi } from "@/hooks/useVapi";
+import { useSpeech, useSpeechSynthesis } from "@/hooks/useSpeech";
 import { apiRequest } from "@/lib/queryClient";
 
 interface InterviewSessionProps {
@@ -29,9 +30,33 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
     score: number;
     feedback?: string;
   }>>([]);
+  const [useVoiceMode, setUseVoiceMode] = useState(true);
   
   const { interview, session, endInterview } = useInterview(interviewId);
   const { isCallActive, transcript, endCall } = useVapi();
+  
+  // Web Speech API hooks
+  const { 
+    isListening, 
+    transcript: speechTranscript, 
+    interimTranscript, 
+    error: speechError,
+    isSupported: speechSupported,
+    startListening, 
+    stopListening, 
+    resetTranscript 
+  } = useSpeech({ 
+    language: interview?.language || 'hi-IN',
+    continuous: false,
+    interimResults: true
+  });
+  
+  const { 
+    speak, 
+    stop: stopSpeaking, 
+    isSpeaking, 
+    isSupported: ttsSupported 
+  } = useSpeechSynthesis();
 
   useEffect(() => {
     if (!isCallActive) return;
@@ -52,6 +77,23 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
       setCurrentScore(averageScore);
     }
   }, [session]);
+
+  // Speak the current question when it changes
+  useEffect(() => {
+    if (useVoiceMode && ttsSupported && session?.sessionData?.currentQuestion) {
+      const question = session.sessionData.currentQuestion;
+      if (question && question !== "Starting interview...") {
+        speak(question, { lang: interview?.language || 'hi-IN' });
+      }
+    }
+  }, [session?.sessionData?.currentQuestion, useVoiceMode, ttsSupported, speak, interview?.language]);
+
+  // Update text input with speech transcript
+  useEffect(() => {
+    if (speechTranscript && useVoiceMode) {
+      setCurrentAnswer(speechTranscript);
+    }
+  }, [speechTranscript, useVoiceMode]);
 
   const handleEndInterview = async () => {
     try {
@@ -84,6 +126,7 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
 
       setCurrentAnswer("");
       setCurrentScore(response.evaluation.score);
+      resetTranscript();
       
       // Check if interview is complete
       if (response.isComplete) {
@@ -93,6 +136,26 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
       console.error("Error submitting response:", error);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleVoiceToggle = () => {
+    if (isListening) {
+      stopListening();
+    } else {
+      resetTranscript();
+      setCurrentAnswer("");
+      startListening();
+    }
+  };
+
+  const handleModeToggle = () => {
+    setUseVoiceMode(!useVoiceMode);
+    if (isListening) {
+      stopListening();
+    }
+    if (isSpeaking) {
+      stopSpeaking();
     }
   };
 
@@ -179,60 +242,144 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
           <p className="text-sm text-text-secondary">{currentQuestion}</p>
         </div>
 
-        {/* Voice Activity */}
-        <div className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+        {/* Mode Toggle */}
+        <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-200">
           <div className="flex items-center space-x-2">
-            {isRecording && !isPaused ? (
-              <Mic className="h-5 w-5 text-secondary" />
-            ) : (
-              <MicOff className="h-5 w-5 text-gray-400" />
-            )}
-            <span className="text-sm text-text-secondary">
-              {isRecording && !isPaused ? 'Listening...' : 'Paused'}
-            </span>
+            <span className="text-sm font-medium text-blue-700">Interview Mode:</span>
+            <Button
+              onClick={handleModeToggle}
+              variant={useVoiceMode ? "default" : "outline"}
+              size="sm"
+            >
+              {useVoiceMode ? (
+                <>
+                  <Volume2 className="h-4 w-4 mr-2" />
+                  Voice Mode
+                </>
+              ) : (
+                <>
+                  📝 Text Mode
+                </>
+              )}
+            </Button>
           </div>
-          <div className="flex-1 flex items-center justify-center">
-            <VoiceWave isActive={isRecording && !isPaused} />
-          </div>
+          {!speechSupported && !ttsSupported && (
+            <span className="text-xs text-amber-600">Voice not supported in this browser</span>
+          )}
         </div>
 
-        {/* Demo Text Input */}
-        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
-          <div className="flex items-center space-x-2 mb-3">
-            <div className="w-6 h-6 bg-blue-200 rounded-full flex items-center justify-center">
-              <span className="text-xs font-medium text-blue-700">📝</span>
+        {/* Voice Activity */}
+        {useVoiceMode && (
+          <div className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
+            <div className="flex items-center space-x-2">
+              {isListening ? (
+                <Mic className="h-5 w-5 text-red-500" />
+              ) : (
+                <MicOff className="h-5 w-5 text-gray-400" />
+              )}
+              <span className="text-sm text-text-secondary">
+                {isListening ? 'Listening...' : isSpeaking ? 'AI Speaking...' : 'Ready'}
+              </span>
             </div>
-            <span className="text-sm font-medium text-blue-700">Demo Mode - Text Response</span>
+            <div className="flex-1 flex items-center justify-center">
+              <VoiceWave isActive={isListening || isSpeaking} />
+            </div>
+            <Button
+              onClick={handleVoiceToggle}
+              variant={isListening ? "destructive" : "default"}
+              size="sm"
+              disabled={isSpeaking}
+            >
+              {isListening ? (
+                <>
+                  <MicOff className="h-4 w-4 mr-2" />
+                  Stop
+                </>
+              ) : (
+                <>
+                  <Mic className="h-4 w-4 mr-2" />
+                  Record
+                </>
+              )}
+            </Button>
           </div>
-          <div className="space-y-3">
-            <Textarea
-              value={currentAnswer}
-              onChange={(e) => setCurrentAnswer(e.target.value)}
-              placeholder="Type your answer here (simulating voice response)..."
-              className="min-h-[80px] resize-none"
-              disabled={isSubmitting}
-            />
-            <div className="flex space-x-2">
-              <Button 
-                onClick={handleSubmitResponse} 
-                disabled={!currentAnswer.trim() || isSubmitting}
-                className="flex-1"
-              >
-                {isSubmitting ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Processing...
-                  </>
-                ) : (
-                  <>
-                    <Send className="h-4 w-4 mr-2" />
-                    Submit Answer
-                  </>
-                )}
-              </Button>
+        )}
+
+        {/* Live Transcript */}
+        {useVoiceMode && (speechTranscript || interimTranscript) && (
+          <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+            <div className="text-sm font-medium text-green-700 mb-1">Your Speech:</div>
+            <div className="text-sm text-gray-800">
+              {speechTranscript}
+              {interimTranscript && (
+                <span className="text-gray-500 italic">{interimTranscript}</span>
+              )}
             </div>
           </div>
-        </div>
+        )}
+
+        {/* Text Input Mode */}
+        {!useVoiceMode && (
+          <div className="p-4 bg-gray-50 rounded-lg border border-gray-200">
+            <div className="flex items-center space-x-2 mb-3">
+              <div className="w-6 h-6 bg-gray-200 rounded-full flex items-center justify-center">
+                <span className="text-xs font-medium text-gray-700">📝</span>
+              </div>
+              <span className="text-sm font-medium text-gray-700">Text Response Mode</span>
+            </div>
+            <div className="space-y-3">
+              <Textarea
+                value={currentAnswer}
+                onChange={(e) => setCurrentAnswer(e.target.value)}
+                placeholder="Type your answer here..."
+                className="min-h-[80px] resize-none"
+                disabled={isSubmitting}
+              />
+              <div className="flex space-x-2">
+                <Button 
+                  onClick={handleSubmitResponse} 
+                  disabled={!currentAnswer.trim() || isSubmitting}
+                  className="flex-1"
+                >
+                  {isSubmitting ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Processing...
+                    </>
+                  ) : (
+                    <>
+                      <Send className="h-4 w-4 mr-2" />
+                      Submit Answer
+                    </>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Voice Submit Button */}
+        {useVoiceMode && speechTranscript && (
+          <div className="flex space-x-2">
+            <Button 
+              onClick={handleSubmitResponse} 
+              disabled={!currentAnswer.trim() || isSubmitting}
+              className="flex-1"
+            >
+              {isSubmitting ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Submit Voice Answer
+                </>
+              )}
+            </Button>
+          </div>
+        )}
 
         {/* Response History */}
         {responseHistory.length > 0 && (
