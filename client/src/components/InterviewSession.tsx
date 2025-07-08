@@ -82,23 +82,32 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
 
   // Speak the current question when it changes
   useEffect(() => {
-    if (useVoiceMode && ttsSupported && speechInitialized && session?.sessionData?.currentQuestion) {
+    if (useVoiceMode && ttsSupported && session?.sessionData?.currentQuestion) {
       const question = session.sessionData.currentQuestion;
-      if (question && question !== "Starting interview...") {
-        console.log('Attempting to speak question:', question);
-        speak(question, { lang: 'en-US' })
-          .then(() => console.log('Question spoken successfully'))
-          .catch((error) => {
-            console.error('Failed to speak question:', error);
-            // Try again with a simple fallback
-            setTimeout(() => {
-              speak(question, { lang: 'en-US' })
-                .catch((e) => console.error('Fallback speech also failed:', e));
-            }, 500);
-          });
+      if (question && question !== "Starting interview..." && question.length > 0) {
+        console.log('New question detected, attempting to speak:', question);
+        
+        // Auto-initialize speech on first question if not already done
+        if (!speechInitialized) {
+          setSpeechInitialized(true);
+        }
+        
+        // Wait a bit for any ongoing speech to finish
+        setTimeout(() => {
+          speak(question, { lang: 'en-US' })
+            .then(() => console.log('Question spoken successfully'))
+            .catch((error) => {
+              console.error('Failed to speak question:', error);
+              // Try again with a simple fallback
+              setTimeout(() => {
+                speak(question, { lang: 'en-US' })
+                  .catch((e) => console.error('Fallback speech also failed:', e));
+              }, 1000);
+            });
+        }, 300);
       }
     }
-  }, [session?.sessionData?.currentQuestion, useVoiceMode, ttsSupported, speechInitialized, speak]);
+  }, [session?.sessionData?.currentQuestion, useVoiceMode, ttsSupported, speak]);
 
   const handleTestSpeech = () => {
     console.log('Testing speech synthesis...');
@@ -137,8 +146,13 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
       return;
     }
     
+    console.log('Starting recording with fresh transcript...');
     resetTranscript();
-    startListening();
+    
+    // Try starting with a small delay to ensure everything is ready
+    setTimeout(() => {
+      startListening();
+    }, 100);
   };
 
   // Check microphone permission on component mount
@@ -392,6 +406,11 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
                 ✓ Mic ready
               </div>
             )}
+            {speechError === 'network' && (
+              <div className="text-xs text-red-600 mt-1">
+                Network error - speech recognition unavailable
+              </div>
+            )}
           </div>
         )}
 
@@ -405,6 +424,22 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
                 <span className="text-gray-500 italic">{interimTranscript}</span>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Fallback Text Input for Voice Mode */}
+        {useVoiceMode && speechError === 'network' && (
+          <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+            <div className="text-sm font-medium text-amber-700 mb-2">
+              Speech recognition unavailable - use text input instead:
+            </div>
+            <Textarea
+              value={currentAnswer}
+              onChange={(e) => setCurrentAnswer(e.target.value)}
+              placeholder="Type your answer here as speech recognition is not working..."
+              className="min-h-[60px] resize-none"
+              disabled={isSubmitting}
+            />
           </div>
         )}
 

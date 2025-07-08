@@ -58,9 +58,10 @@ export function useSpeech(options: UseSpeechOptions = {}) {
       recognitionRef.current = new SpeechRecognitionClass();
       const recognition = recognitionRef.current;
       
-      recognition.continuous = options.continuous ?? true;
+      recognition.continuous = options.continuous ?? false; // Set to false for better reliability
       recognition.interimResults = options.interimResults ?? true;
-      recognition.lang = options.language || 'hi-IN';
+      recognition.lang = options.language || 'en-US'; // Use English for better reliability
+      recognition.maxAlternatives = 1;
       
       recognition.addEventListener('result', (event: SpeechRecognitionEvent) => {
         console.log('Speech recognition result event:', event.results);
@@ -98,6 +99,22 @@ export function useSpeech(options: UseSpeechOptions = {}) {
         console.error('Speech recognition error:', event.error, event.message);
         setError(event.error);
         setIsListening(false);
+        
+        // Auto-retry for network errors
+        if (event.error === 'network') {
+          console.log('Network error detected, will retry in 2 seconds...');
+          setTimeout(() => {
+            if (recognitionRef.current && !isListening) {
+              console.log('Retrying speech recognition...');
+              setError(null);
+              try {
+                recognitionRef.current.start();
+              } catch (retryError) {
+                console.error('Retry failed:', retryError);
+              }
+            }
+          }, 2000);
+        }
       });
       
       recognition.addEventListener('soundstart', () => {
