@@ -147,42 +147,70 @@ export function useSpeechSynthesis() {
   const speak = useCallback((text: string, options?: { lang?: string; rate?: number; pitch?: number; volume?: number }) => {
     if (!isSupported || !text) {
       console.log('Speech synthesis not supported or no text provided');
-      return;
+      return Promise.reject('Not supported or no text');
     }
 
-    try {
-      // Cancel any ongoing speech
-      speechSynthesis.cancel();
-      
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.lang = options?.lang || 'en-US'; // Default to English for better compatibility
-      utterance.rate = options?.rate || 0.9;
-      utterance.pitch = options?.pitch || 1;
-      utterance.volume = options?.volume || 1;
+    return new Promise<void>((resolve, reject) => {
+      try {
+        // Cancel any ongoing speech
+        speechSynthesis.cancel();
+        
+        // Wait for voices to be loaded
+        const speakWithVoices = () => {
+          const utterance = new SpeechSynthesisUtterance(text);
+          utterance.lang = options?.lang || 'en-US';
+          utterance.rate = options?.rate || 0.9;
+          utterance.pitch = options?.pitch || 1;
+          utterance.volume = options?.volume || 1;
 
-      utterance.onstart = () => {
-        console.log('Speech started:', text);
-        setIsSpeaking(true);
-      };
-      
-      utterance.onend = () => {
-        console.log('Speech ended');
-        setIsSpeaking(false);
-      };
-      
-      utterance.onerror = (event) => {
-        console.error('Speech error:', event);
-        setIsSpeaking(false);
-      };
+          utterance.onstart = () => {
+            console.log('Speech started:', text.substring(0, 50) + '...');
+            setIsSpeaking(true);
+          };
+          
+          utterance.onend = () => {
+            console.log('Speech ended successfully');
+            setIsSpeaking(false);
+            resolve();
+          };
+          
+          utterance.onerror = (event) => {
+            console.error('Speech error:', event.error);
+            setIsSpeaking(false);
+            reject(event.error);
+          };
 
-      // Small delay to ensure speechSynthesis is ready
-      setTimeout(() => {
-        speechSynthesis.speak(utterance);
-      }, 100);
-    } catch (error) {
-      console.error('Error in speak function:', error);
-      setIsSpeaking(false);
-    }
+          // Use a more reliable approach to queue speech
+          if (speechSynthesis.speaking) {
+            speechSynthesis.cancel();
+          }
+          
+          speechSynthesis.speak(utterance);
+        };
+
+        // Check if voices are already loaded
+        if (speechSynthesis.getVoices().length > 0) {
+          speakWithVoices();
+        } else {
+          // Wait for voices to load
+          const voicesChanged = () => {
+            speechSynthesis.removeEventListener('voiceschanged', voicesChanged);
+            speakWithVoices();
+          };
+          speechSynthesis.addEventListener('voiceschanged', voicesChanged);
+          
+          // Fallback timeout
+          setTimeout(() => {
+            speechSynthesis.removeEventListener('voiceschanged', voicesChanged);
+            speakWithVoices();
+          }, 1000);
+        }
+      } catch (error) {
+        console.error('Error in speak function:', error);
+        setIsSpeaking(false);
+        reject(error);
+      }
+    });
   }, [isSupported]);
 
   const stop = useCallback(() => {

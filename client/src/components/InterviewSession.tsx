@@ -31,6 +31,7 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
     feedback?: string;
   }>>([]);
   const [useVoiceMode, setUseVoiceMode] = useState(true);
+  const [speechInitialized, setSpeechInitialized] = useState(false);
   
   const { interview, session, endInterview } = useInterview(interviewId);
   const { isCallActive, transcript, endCall } = useVapi();
@@ -80,25 +81,40 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
 
   // Speak the current question when it changes
   useEffect(() => {
-    if (useVoiceMode && ttsSupported && session?.sessionData?.currentQuestion) {
+    if (useVoiceMode && ttsSupported && speechInitialized && session?.sessionData?.currentQuestion) {
       const question = session.sessionData.currentQuestion;
       if (question && question !== "Starting interview...") {
         console.log('Attempting to speak question:', question);
-        speak(question, { lang: 'en-US' }); // Use English for better compatibility
+        speak(question, { lang: 'en-US' })
+          .then(() => console.log('Question spoken successfully'))
+          .catch((error) => {
+            console.error('Failed to speak question:', error);
+            // Try again with a simple fallback
+            setTimeout(() => {
+              speak(question, { lang: 'en-US' })
+                .catch((e) => console.error('Fallback speech also failed:', e));
+            }, 500);
+          });
       }
     }
-  }, [session?.sessionData?.currentQuestion, useVoiceMode, ttsSupported, speak]);
+  }, [session?.sessionData?.currentQuestion, useVoiceMode, ttsSupported, speechInitialized, speak]);
 
   const handleTestSpeech = () => {
     console.log('Testing speech synthesis...');
-    speak("Hello, this is a test of the speech system. Can you hear me?", { lang: 'en-US' });
+    setSpeechInitialized(true); // Mark speech as initialized through user interaction
+    speak("Hello, this is a test of the speech system. Can you hear me?", { lang: 'en-US' })
+      .then(() => console.log('Test speech completed'))
+      .catch((error) => console.error('Test speech failed:', error));
   };
 
   const handleRepeatQuestion = () => {
     const question = session?.sessionData?.currentQuestion;
     if (question && question !== "Starting interview...") {
       console.log('Repeating question:', question);
-      speak(question, { lang: 'en-US' });
+      setSpeechInitialized(true); // Initialize speech through user interaction
+      speak(question, { lang: 'en-US' })
+        .then(() => console.log('Question repeated successfully'))
+        .catch((error) => console.error('Failed to repeat question:', error));
     }
   };
 
@@ -289,9 +305,14 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
               <span className="text-xs text-amber-600">Voice not supported in this browser</span>
             )}
             {ttsSupported && (
-              <Button onClick={handleTestSpeech} variant="outline" size="sm">
-                🔊 Test Voice
-              </Button>
+              <div className="flex items-center space-x-2">
+                <Button onClick={handleTestSpeech} variant="outline" size="sm">
+                  🔊 Test Voice
+                </Button>
+                {!speechInitialized && (
+                  <span className="text-xs text-amber-600">Click test to enable auto-speech</span>
+                )}
+              </div>
             )}
           </div>
         </div>
