@@ -83,10 +83,24 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
     if (useVoiceMode && ttsSupported && session?.sessionData?.currentQuestion) {
       const question = session.sessionData.currentQuestion;
       if (question && question !== "Starting interview...") {
-        speak(question, { lang: interview?.language || 'hi-IN' });
+        console.log('Attempting to speak question:', question);
+        speak(question, { lang: 'en-US' }); // Use English for better compatibility
       }
     }
-  }, [session?.sessionData?.currentQuestion, useVoiceMode, ttsSupported, speak, interview?.language]);
+  }, [session?.sessionData?.currentQuestion, useVoiceMode, ttsSupported, speak]);
+
+  const handleTestSpeech = () => {
+    console.log('Testing speech synthesis...');
+    speak("Hello, this is a test of the speech system. Can you hear me?", { lang: 'en-US' });
+  };
+
+  const handleRepeatQuestion = () => {
+    const question = session?.sessionData?.currentQuestion;
+    if (question && question !== "Starting interview...") {
+      console.log('Repeating question:', question);
+      speak(question, { lang: 'en-US' });
+    }
+  };
 
   // Update text input with speech transcript
   useEffect(() => {
@@ -233,11 +247,18 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
 
         {/* Current Question */}
         <div className="p-4 bg-primary/5 rounded-lg">
-          <div className="flex items-center space-x-2 mb-2">
-            <div className="w-6 h-6 bg-primary/20 rounded-full flex items-center justify-center">
-              <span className="text-xs font-medium text-primary">AI</span>
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center space-x-2">
+              <div className="w-6 h-6 bg-primary/20 rounded-full flex items-center justify-center">
+                <span className="text-xs font-medium text-primary">AI</span>
+              </div>
+              <span className="text-sm font-medium text-text-primary">AI Interviewer</span>
             </div>
-            <span className="text-sm font-medium text-text-primary">AI Interviewer</span>
+            {useVoiceMode && ttsSupported && currentQuestion !== "Starting interview..." && (
+              <Button onClick={handleRepeatQuestion} variant="outline" size="sm">
+                🔊 Repeat
+              </Button>
+            )}
           </div>
           <p className="text-sm text-text-secondary">{currentQuestion}</p>
         </div>
@@ -263,9 +284,16 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
               )}
             </Button>
           </div>
-          {!speechSupported && !ttsSupported && (
-            <span className="text-xs text-amber-600">Voice not supported in this browser</span>
-          )}
+          <div className="flex items-center space-x-2">
+            {!speechSupported && !ttsSupported && (
+              <span className="text-xs text-amber-600">Voice not supported in this browser</span>
+            )}
+            {ttsSupported && (
+              <Button onClick={handleTestSpeech} variant="outline" size="sm">
+                🔊 Test Voice
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Voice Activity */}

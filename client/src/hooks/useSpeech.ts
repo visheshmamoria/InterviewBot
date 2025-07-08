@@ -145,24 +145,53 @@ export function useSpeechSynthesis() {
   }, []);
 
   const speak = useCallback((text: string, options?: { lang?: string; rate?: number; pitch?: number; volume?: number }) => {
-    if (!isSupported || !text) return;
+    if (!isSupported || !text) {
+      console.log('Speech synthesis not supported or no text provided');
+      return;
+    }
 
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = options?.lang || 'hi-IN';
-    utterance.rate = options?.rate || 1;
-    utterance.pitch = options?.pitch || 1;
-    utterance.volume = options?.volume || 1;
+    try {
+      // Cancel any ongoing speech
+      speechSynthesis.cancel();
+      
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = options?.lang || 'en-US'; // Default to English for better compatibility
+      utterance.rate = options?.rate || 0.9;
+      utterance.pitch = options?.pitch || 1;
+      utterance.volume = options?.volume || 1;
 
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
-    utterance.onerror = () => setIsSpeaking(false);
+      utterance.onstart = () => {
+        console.log('Speech started:', text);
+        setIsSpeaking(true);
+      };
+      
+      utterance.onend = () => {
+        console.log('Speech ended');
+        setIsSpeaking(false);
+      };
+      
+      utterance.onerror = (event) => {
+        console.error('Speech error:', event);
+        setIsSpeaking(false);
+      };
 
-    speechSynthesis.speak(utterance);
+      // Small delay to ensure speechSynthesis is ready
+      setTimeout(() => {
+        speechSynthesis.speak(utterance);
+      }, 100);
+    } catch (error) {
+      console.error('Error in speak function:', error);
+      setIsSpeaking(false);
+    }
   }, [isSupported]);
 
   const stop = useCallback(() => {
-    speechSynthesis.cancel();
-    setIsSpeaking(false);
+    try {
+      speechSynthesis.cancel();
+      setIsSpeaking(false);
+    } catch (error) {
+      console.error('Error stopping speech:', error);
+    }
   }, []);
 
   return {
