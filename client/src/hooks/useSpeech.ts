@@ -63,6 +63,7 @@ export function useSpeech(options: UseSpeechOptions = {}) {
       recognition.lang = options.language || 'hi-IN';
       
       recognition.addEventListener('result', (event: SpeechRecognitionEvent) => {
+        console.log('Speech recognition result event:', event.results);
         let interimTranscriptValue = '';
         let finalTranscriptValue = finalTranscriptRef.current;
         
@@ -70,8 +71,10 @@ export function useSpeech(options: UseSpeechOptions = {}) {
           const transcript = event.results[i][0].transcript;
           if (event.results[i].isFinal) {
             finalTranscriptValue += transcript + ' ';
+            console.log('Final transcript segment:', transcript);
           } else {
             interimTranscriptValue += transcript;
+            console.log('Interim transcript segment:', transcript);
           }
         }
         
@@ -81,17 +84,28 @@ export function useSpeech(options: UseSpeechOptions = {}) {
       });
       
       recognition.addEventListener('start', () => {
+        console.log('Speech recognition started');
         setIsListening(true);
         setError(null);
       });
       
       recognition.addEventListener('end', () => {
+        console.log('Speech recognition ended');
         setIsListening(false);
       });
       
       recognition.addEventListener('error', (event: SpeechRecognitionErrorEvent) => {
+        console.error('Speech recognition error:', event.error, event.message);
         setError(event.error);
         setIsListening(false);
+      });
+      
+      recognition.addEventListener('soundstart', () => {
+        console.log('Sound detected by speech recognition');
+      });
+      
+      recognition.addEventListener('soundend', () => {
+        console.log('Sound ended in speech recognition');
       });
     }
     
@@ -104,11 +118,18 @@ export function useSpeech(options: UseSpeechOptions = {}) {
 
   const startListening = useCallback(() => {
     if (recognitionRef.current && !isListening) {
+      console.log('Starting speech recognition...');
       finalTranscriptRef.current = '';
       setTranscript('');
       setInterimTranscript('');
       setError(null);
-      recognitionRef.current.start();
+      
+      try {
+        recognitionRef.current.start();
+      } catch (error) {
+        console.error('Error starting speech recognition:', error);
+        setError('Failed to start recording');
+      }
     }
   }, [isListening]);
 
@@ -152,11 +173,13 @@ export function useSpeechSynthesis() {
 
     return new Promise<void>((resolve, reject) => {
       try {
-        // Cancel any ongoing speech
-        speechSynthesis.cancel();
+        // Cancel any ongoing speech first
+        if (speechSynthesis.speaking || speechSynthesis.pending) {
+          speechSynthesis.cancel();
+        }
         
-        // Wait for voices to be loaded
-        const speakWithVoices = () => {
+        // Wait a bit for cancellation to complete
+        setTimeout(() => {
           const utterance = new SpeechSynthesisUtterance(text);
           utterance.lang = options?.lang || 'en-US';
           utterance.rate = options?.rate || 0.9;
@@ -180,31 +203,9 @@ export function useSpeechSynthesis() {
             reject(event.error);
           };
 
-          // Use a more reliable approach to queue speech
-          if (speechSynthesis.speaking) {
-            speechSynthesis.cancel();
-          }
-          
+          // Speak the utterance
           speechSynthesis.speak(utterance);
-        };
-
-        // Check if voices are already loaded
-        if (speechSynthesis.getVoices().length > 0) {
-          speakWithVoices();
-        } else {
-          // Wait for voices to load
-          const voicesChanged = () => {
-            speechSynthesis.removeEventListener('voiceschanged', voicesChanged);
-            speakWithVoices();
-          };
-          speechSynthesis.addEventListener('voiceschanged', voicesChanged);
-          
-          // Fallback timeout
-          setTimeout(() => {
-            speechSynthesis.removeEventListener('voiceschanged', voicesChanged);
-            speakWithVoices();
-          }, 1000);
-        }
+        }, 100);
       } catch (error) {
         console.error('Error in speak function:', error);
         setIsSpeaking(false);

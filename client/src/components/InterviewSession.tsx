@@ -32,6 +32,7 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
   }>>([]);
   const [useVoiceMode, setUseVoiceMode] = useState(true);
   const [speechInitialized, setSpeechInitialized] = useState(false);
+  const [micPermission, setMicPermission] = useState<'granted' | 'denied' | 'prompt' | 'unknown'>('unknown');
   
   const { interview, session, endInterview } = useInterview(interviewId);
   const { isCallActive, transcript, endCall } = useVapi();
@@ -47,7 +48,7 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
     stopListening, 
     resetTranscript 
   } = useSpeech({ 
-    language: interview?.language || 'hi-IN',
+    language: interview?.language || 'en-US',
     continuous: false,
     interimResults: true
   });
@@ -117,6 +118,33 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
         .catch((error) => console.error('Failed to repeat question:', error));
     }
   };
+
+  const checkMicPermission = async () => {
+    try {
+      const result = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+      setMicPermission(result.state);
+      console.log('Microphone permission:', result.state);
+    } catch (error) {
+      console.log('Could not check microphone permission:', error);
+      setMicPermission('unknown');
+    }
+  };
+
+  const handleStartRecording = async () => {
+    await checkMicPermission();
+    if (micPermission === 'denied') {
+      console.error('Microphone permission denied');
+      return;
+    }
+    
+    resetTranscript();
+    startListening();
+  };
+
+  // Check microphone permission on component mount
+  useEffect(() => {
+    checkMicPermission();
+  }, []);
 
   // Update text input with speech transcript
   useEffect(() => {
@@ -312,6 +340,9 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
                 {!speechInitialized && (
                   <span className="text-xs text-amber-600">Click test to enable auto-speech</span>
                 )}
+                {speechInitialized && (
+                  <span className="text-xs text-green-600">✓ Speech ready</span>
+                )}
               </div>
             )}
           </div>
@@ -334,10 +365,10 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
               <VoiceWave isActive={isListening || isSpeaking} />
             </div>
             <Button
-              onClick={handleVoiceToggle}
+              onClick={isListening ? stopListening : handleStartRecording}
               variant={isListening ? "destructive" : "default"}
               size="sm"
-              disabled={isSpeaking}
+              disabled={isSpeaking || micPermission === 'denied'}
             >
               {isListening ? (
                 <>
@@ -351,6 +382,16 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
                 </>
               )}
             </Button>
+            {micPermission === 'denied' && (
+              <div className="text-xs text-red-600 mt-1">
+                Microphone access denied. Please enable in browser settings.
+              </div>
+            )}
+            {micPermission === 'granted' && (
+              <div className="text-xs text-green-600 mt-1">
+                ✓ Mic ready
+              </div>
+            )}
           </div>
         )}
 
