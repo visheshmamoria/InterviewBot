@@ -86,8 +86,7 @@ export class VapiService {
   async createAssistant(language: string, interviewType: string, experienceLevel: string): Promise<VapiAssistant> {
     const systemPrompt = this.generateSystemPrompt(language, interviewType, experienceLevel);
     
-    const assistant: VapiAssistant = {
-      id: `assistant_${Date.now()}`,
+    const assistantRequest = {
       name: `Bank Sales Interview - ${language}`,
       model: {
         provider: "openai",
@@ -100,32 +99,43 @@ export class VapiService {
         ]
       },
       voice: {
-        provider: "sarvam",
-        voiceId: this.getVoiceIdForLanguage(language),
-        language
+        provider: "11labs",
+        voiceId: "21m00Tcm4TlvDq8ikWAM", // Default voice, can be customized
       },
       transcriber: {
-        provider: "sarvam",
-        language
+        provider: "deepgram",
+        model: "nova-2",
+        language: "en"
       },
       firstMessage: this.getFirstMessage(language, interviewType)
     };
 
     try {
-      const response = await fetch(`${this.config.baseUrl}/assistants`, {
+      const response = await fetch(`${this.config.baseUrl}/assistant`, {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${this.config.apiKey}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(assistant)
+        body: JSON.stringify(assistantRequest)
       });
 
       if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Vapi API error response:', errorText);
         throw new Error(`Vapi API error: ${response.status} ${response.statusText}`);
       }
 
-      return await response.json();
+      const result = await response.json();
+      return {
+        ...result,
+        id: result.id,
+        name: result.name || assistantRequest.name,
+        model: result.model || assistantRequest.model,
+        voice: result.voice || assistantRequest.voice,
+        transcriber: result.transcriber || assistantRequest.transcriber,
+        firstMessage: result.firstMessage || assistantRequest.firstMessage
+      } as VapiAssistant;
     } catch (error) {
       console.error('Error creating Vapi assistant:', error);
       throw error;

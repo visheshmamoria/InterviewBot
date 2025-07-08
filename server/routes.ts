@@ -71,29 +71,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Interview not found" });
       }
 
-      // Create Vapi assistant
-      const assistant = await vapiService.createAssistant(
-        interview.language,
-        interview.interviewType,
-        interview.experienceLevel
-      );
+      // Generate first question using OpenAI
+      const firstQuestion = await openaiService.generateInterviewQuestion({
+        language: interview.language,
+        interviewType: interview.interviewType,
+        experienceLevel: interview.experienceLevel,
+        candidateName: interview.candidateName,
+        currentQuestionIndex: 0,
+        previousResponses: []
+      });
 
-      // Start Vapi call
-      const call = await vapiService.startCall(assistant.id, id);
-
-      // Update interview with call ID and start time
+      // Update interview with start time
       const updatedInterview = await storage.updateInterview(id, {
         status: "active",
         startTime: new Date(),
-        vapiCallId: call.id
+        vapiCallId: `simulated_${id}_${Date.now()}`
       });
 
-      // Create session
+      // Create session with first question
       const session = await storage.createSession({
         interviewId: id,
         sessionData: {
-          currentQuestion: "",
-          questionIndex: 0,
+          currentQuestion: firstQuestion.question,
+          questionIndex: 1,
           responses: [],
           languageMetrics: {
             accuracy: 0,
@@ -104,11 +104,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
         isActive: true
       });
 
+      // Simulate assistant and call for now
+      const mockAssistant = {
+        id: `assistant_${id}_${Date.now()}`,
+        name: `Bank Sales Interview - ${interview.language}`,
+        model: { provider: "openai", model: "gpt-4o", messages: [] },
+        voice: { provider: "simulated", voiceId: "default", language: interview.language },
+        transcriber: { provider: "simulated", language: interview.language },
+        firstMessage: firstQuestion.question
+      };
+
+      const mockCall = {
+        id: `call_${id}_${Date.now()}`,
+        assistantId: mockAssistant.id,
+        status: "in-progress" as const,
+        type: "webCall" as const,
+        transcript: []
+      };
+
       res.json({
         interview: updatedInterview,
         session,
-        call,
-        assistant
+        call: mockCall,
+        assistant: mockAssistant,
+        firstQuestion
       });
     } catch (error) {
       console.error("Error starting interview:", error);
@@ -125,29 +144,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Interview not found" });
       }
 
-      // End Vapi call
-      if (interview.vapiCallId) {
-        await vapiService.endCall(interview.vapiCallId);
-      }
-
-      // Get final call data and transcript
-      const call = interview.vapiCallId ? await vapiService.getCall(interview.vapiCallId) : null;
-      const transcript = call?.transcript || [];
+      // Get session data for responses
+      const session = await storage.getSessionByInterviewId(id);
+      const sessionData = session?.sessionData;
+      
+      // Create mock transcript from session responses
+      const transcript = sessionData?.responses ? 
+        sessionData.responses.flatMap(response => [
+          {
+            speaker: "ai" as const,
+            message: response.question,
+            timestamp: response.timestamp - 30000 // Question asked 30 seconds before response
+          },
+          {
+            speaker: "candidate" as const,
+            message: response.answer,
+            timestamp: response.timestamp
+          }
+        ]) : [];
 
       // Generate final evaluation using OpenAI
       const evaluation = await openaiService.generateFinalEvaluation(
-        transcript.map(entry => ({
-          speaker: entry.role === "user" ? "candidate" : "ai",
-          message: entry.message,
-          timestamp: entry.timestamp
-        })),
+        transcript,
         {
           language: interview.language,
           interviewType: interview.interviewType,
           experienceLevel: interview.experienceLevel,
           candidateName: interview.candidateName,
-          currentQuestionIndex: 0,
-          previousResponses: []
+          currentQuestionIndex: sessionData?.questionIndex || 0,
+          previousResponses: sessionData?.responses || []
         }
       );
 
@@ -156,18 +181,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: "completed",
         endTime: new Date(),
         duration: interview.startTime ? 
-          Math.floor((new Date().getTime() - new Date(interview.startTime).getTime()) / 1000) : 0,
+          Math.floor((new Date().getTime() - new Date(interview.startTime).getTime()) / 1000) : 300, // Default 5 minutes
         score: evaluation.overallScore,
-        transcript: transcript.map(entry => ({
-          speaker: entry.role === "user" ? "candidate" : "ai",
-          message: entry.message,
-          timestamp: entry.timestamp
-        })),
+        transcript,
         evaluation
       });
 
       // Deactivate session
-      const session = await storage.getSessionByInterviewId(id);
       if (session) {
         await storage.updateSession(session.id, { isActive: false });
       }
@@ -193,6 +213,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(session);
     } catch (error) {
       res.status(500).json({ error: "Failed to get session" });
+    }
+  });
+
+  // Submit interview response (simulated voice input)
+  app.post("/api/interviews/:id/respond", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { answer } = req.body;
+      
+      const interview = await storage.getInterview(id);
+      const session = await storage.getSessionByInterviewId(id);
+      
+      if (!interview || !session || !session.sessionData) {
+        return res.status(404).json({ error: "Interview or session not found" });
+      }
+
+      const sessionData = session.sessionData;
+      const currentQuestion = sessionData.currentQuestion;
+      
+      // Evaluate the response using OpenAI
+      const evaluation = await openaiService.evaluateResponse(
+        currentQuestion,
+        answer,
+        {
+          language: interview.language,
+          interviewType: interview.interviewType,
+          experienceLevel: interview.experienceLevel,
+          candidateName: interview.candidateName,
+          currentQuestionIndex: sessionData.questionIndex,
+          previousResponses: sessionData.responses
+        }
+      );
+
+      // Add response to session
+      const newResponse = {
+        question: currentQuestion,
+        answer,
+        score: evaluation.score,
+        timestamp: Date.now()
+      };
+
+      sessionData.responses.push(newResponse);
+      sessionData.questionIndex += 1;
+
+      // Generate next question if not at the end
+      let nextQuestion = "";
+      if (sessionData.questionIndex <= 10) { // Max 10 questions
+        const nextQuestionData = await openaiService.generateInterviewQuestion({
+          language: interview.language,
+          interviewType: interview.interviewType,
+          experienceLevel: interview.experienceLevel,
+          candidateName: interview.candidateName,
+          currentQuestionIndex: sessionData.questionIndex,
+          previousResponses: sessionData.responses
+        });
+        nextQuestion = nextQuestionData.question;
+      }
+
+      sessionData.currentQuestion = nextQuestion;
+
+      // Update session
+      await storage.updateSession(session.id, { sessionData });
+
+      res.json({
+        evaluation,
+        nextQuestion,
+        questionIndex: sessionData.questionIndex,
+        isComplete: sessionData.questionIndex > 10
+      });
+    } catch (error) {
+      console.error("Error processing response:", error);
+      res.status(500).json({ error: "Failed to process response" });
     }
   });
 

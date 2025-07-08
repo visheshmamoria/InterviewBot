@@ -3,10 +3,13 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
-import { Mic, MicOff, Square, Pause, Play, SkipForward } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Mic, MicOff, Square, Pause, Play, SkipForward, Send } from "lucide-react";
 import { VoiceWave } from "./VoiceWave";
 import { useInterview } from "@/hooks/useInterview";
 import { useVapi } from "@/hooks/useVapi";
+import { apiRequest } from "@/lib/queryClient";
 
 interface InterviewSessionProps {
   interviewId: number;
@@ -18,6 +21,14 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
   const [isPaused, setIsPaused] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentScore, setCurrentScore] = useState(0);
+  const [currentAnswer, setCurrentAnswer] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [responseHistory, setResponseHistory] = useState<Array<{
+    question: string;
+    answer: string;
+    score: number;
+    feedback?: string;
+  }>>([]);
   
   const { interview, session, endInterview } = useInterview(interviewId);
   const { isCallActive, transcript, endCall } = useVapi();
@@ -49,6 +60,39 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
       onInterviewEnded();
     } catch (error) {
       console.error("Error ending interview:", error);
+    }
+  };
+
+  const handleSubmitResponse = async () => {
+    if (!currentAnswer.trim()) return;
+    
+    setIsSubmitting(true);
+    try {
+      const response = await apiRequest(`/api/interviews/${interviewId}/respond`, {
+        method: 'POST',
+        body: JSON.stringify({ answer: currentAnswer }),
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      // Add to history
+      setResponseHistory(prev => [...prev, {
+        question: session?.sessionData?.currentQuestion || "",
+        answer: currentAnswer,
+        score: response.evaluation.score,
+        feedback: response.evaluation.feedback
+      }]);
+
+      setCurrentAnswer("");
+      setCurrentScore(response.evaluation.score);
+      
+      // Check if interview is complete
+      if (response.isComplete) {
+        await handleEndInterview();
+      }
+    } catch (error) {
+      console.error("Error submitting response:", error);
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -151,6 +195,65 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
             <VoiceWave isActive={isRecording && !isPaused} />
           </div>
         </div>
+
+        {/* Demo Text Input */}
+        <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+          <div className="flex items-center space-x-2 mb-3">
+            <div className="w-6 h-6 bg-blue-200 rounded-full flex items-center justify-center">
+              <span className="text-xs font-medium text-blue-700">📝</span>
+            </div>
+            <span className="text-sm font-medium text-blue-700">Demo Mode - Text Response</span>
+          </div>
+          <div className="space-y-3">
+            <Textarea
+              value={currentAnswer}
+              onChange={(e) => setCurrentAnswer(e.target.value)}
+              placeholder="Type your answer here (simulating voice response)..."
+              className="min-h-[80px] resize-none"
+              disabled={isSubmitting}
+            />
+            <div className="flex space-x-2">
+              <Button 
+                onClick={handleSubmitResponse} 
+                disabled={!currentAnswer.trim() || isSubmitting}
+                className="flex-1"
+              >
+                {isSubmitting ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                    Processing...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 mr-2" />
+                    Submit Answer
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+
+        {/* Response History */}
+        {responseHistory.length > 0 && (
+          <div className="space-y-2">
+            <h4 className="font-medium text-text-primary">Interview Progress</h4>
+            <div className="max-h-40 overflow-y-auto space-y-2">
+              {responseHistory.map((item, index) => (
+                <div key={index} className="p-3 bg-gray-50 rounded-lg text-sm">
+                  <div className="font-medium text-text-primary mb-1">Q{index + 1}: {item.question}</div>
+                  <div className="text-text-secondary mb-1">A: {item.answer}</div>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs text-gray-500">Score: {item.score}/10</span>
+                    {item.feedback && (
+                      <span className="text-xs text-blue-600">{item.feedback}</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Latest Response */}
         {latestTranscript && latestTranscript.speaker === "candidate" && (
