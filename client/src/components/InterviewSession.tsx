@@ -362,55 +362,14 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
           </div>
         </div>
 
-        {/* Voice Activity */}
+        {/* Voice Activity Status */}
         {useVoiceMode && (
-          <div className="flex items-center space-x-4 p-4 bg-gray-50 rounded-lg">
-            <div className="flex items-center space-x-2">
-              {isListening ? (
-                <Mic className="h-5 w-5 text-red-500" />
-              ) : (
-                <MicOff className="h-5 w-5 text-gray-400" />
-              )}
-              <span className="text-sm text-text-secondary">
-                {isListening ? 'Listening...' : isSpeaking ? 'AI Speaking...' : 'Ready'}
-              </span>
-            </div>
-            <div className="flex-1 flex items-center justify-center">
-              <VoiceWave isActive={isListening || isSpeaking} />
-            </div>
-            <Button
-              onClick={isListening ? stopListening : handleStartRecording}
-              variant={isListening ? "destructive" : "default"}
-              size="sm"
-              disabled={isSpeaking || micPermission === 'denied'}
-            >
-              {isListening ? (
-                <>
-                  <MicOff className="h-4 w-4 mr-2" />
-                  Stop
-                </>
-              ) : (
-                <>
-                  <Mic className="h-4 w-4 mr-2" />
-                  Record
-                </>
-              )}
-            </Button>
-            {micPermission === 'denied' && (
-              <div className="text-xs text-red-600 mt-1">
-                Microphone access denied. Please enable in browser settings.
-              </div>
-            )}
-            {micPermission === 'granted' && (
-              <div className="text-xs text-green-600 mt-1">
-                ✓ Mic ready
-              </div>
-            )}
-            {speechError === 'network' && (
-              <div className="text-xs text-red-600 mt-1">
-                Network error - speech recognition unavailable
-              </div>
-            )}
+          <div className="flex items-center justify-center space-x-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
+            <Volume2 className="h-5 w-5 text-blue-600" />
+            <span className="text-sm font-medium text-blue-700">
+              {isSpeaking ? 'AI Speaking Question...' : 'Voice Mode: Questions will be spoken aloud'}
+            </span>
+            <VoiceWave isActive={isSpeaking} />
           </div>
         )}
 
@@ -427,17 +386,17 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
           </div>
         )}
 
-        {/* Fallback Text Input for Voice Mode */}
-        {useVoiceMode && speechError === 'network' && (
+        {/* Voice Mode Input */}
+        {useVoiceMode && (
           <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
             <div className="text-sm font-medium text-amber-700 mb-2">
-              Speech recognition unavailable - use text input instead:
+              🎤 Voice Mode: Questions spoken aloud, type your response below
             </div>
             <Textarea
               value={currentAnswer}
               onChange={(e) => setCurrentAnswer(e.target.value)}
-              placeholder="Type your answer here as speech recognition is not working..."
-              className="min-h-[60px] resize-none"
+              placeholder="Type your answer here... (Speech recognition currently unavailable)"
+              className="min-h-[80px] resize-none"
               disabled={isSubmitting}
             />
           </div>

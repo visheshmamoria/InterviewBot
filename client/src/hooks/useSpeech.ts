@@ -49,6 +49,8 @@ export function useSpeech(options: UseSpeechOptions = {}) {
   
   const recognitionRef = useRef<SpeechRecognition | null>(null);
   const finalTranscriptRef = useRef('');
+  const retryCountRef = useRef(0);
+  const maxRetries = 3;
 
   useEffect(() => {
     const SpeechRecognitionClass = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -100,20 +102,9 @@ export function useSpeech(options: UseSpeechOptions = {}) {
         setError(event.error);
         setIsListening(false);
         
-        // Auto-retry for network errors
         if (event.error === 'network') {
-          console.log('Network error detected, will retry in 2 seconds...');
-          setTimeout(() => {
-            if (recognitionRef.current && !isListening) {
-              console.log('Retrying speech recognition...');
-              setError(null);
-              try {
-                recognitionRef.current.start();
-              } catch (retryError) {
-                console.error('Retry failed:', retryError);
-              }
-            }
-          }, 2000);
+          console.log('Network error - speech recognition unavailable');
+          setError('network');
         }
       });
       
@@ -140,6 +131,7 @@ export function useSpeech(options: UseSpeechOptions = {}) {
       setTranscript('');
       setInterimTranscript('');
       setError(null);
+      retryCountRef.current = 0; // Reset retry counter
       
       try {
         recognitionRef.current.start();
