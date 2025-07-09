@@ -11,20 +11,21 @@ import { useInterview } from "@/hooks/useInterview";
 import { useVapi } from "@/hooks/useVapi";
 import { useSpeech, useSpeechSynthesis } from "@/hooks/useSpeech";
 import { apiRequest } from "@/lib/queryClient";
+import { Interview, InterviewSession } from "@shared/schema";
 
 interface InterviewSessionProps {
   interviewId: number;
   onInterviewEnded: () => void;
 }
 
-export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSessionProps) {
+export function InterviewSessionComponent({ interviewId, onInterviewEnded }: InterviewSessionProps) {
   const [isRecording, setIsRecording] = useState(true);
   const [isPaused, setIsPaused] = useState(false);
   const [duration, setDuration] = useState(0);
   const [currentScore, setCurrentScore] = useState(0);
   const [currentAnswer, setCurrentAnswer] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [responseHistory, setResponseHistory] = useState<Array<{
+  const [responseHistory, setResponseHistory] = useState<Array<{ // Add explicit type for responseHistory
     question: string;
     answer: string;
     score: number;
@@ -74,7 +75,7 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
     // Update score based on session data
     if (session?.sessionData?.responses) {
       const responses = session.sessionData.responses;
-      const totalScore = responses.reduce((sum, response) => sum + response.score, 0);
+      const totalScore = responses.reduce((sum: number, response: { score: number }) => sum + response.score, 0);
       const averageScore = responses.length > 0 ? totalScore / responses.length : 0;
       setCurrentScore(averageScore);
     }
@@ -96,12 +97,12 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
         setTimeout(() => {
           speak(question, { lang: 'en-US' })
             .then(() => console.log('Question spoken successfully'))
-            .catch((error) => {
+            .catch((error: Error) => {
               console.error('Failed to speak question:', error);
               // Try again with a simple fallback
               setTimeout(() => {
                 speak(question, { lang: 'en-US' })
-                  .catch((e) => console.error('Fallback speech also failed:', e));
+                  .catch((e: Error) => console.error('Fallback speech also failed:', e));
               }, 1000);
             });
         }, 300);
@@ -114,7 +115,7 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
     setSpeechInitialized(true); // Mark speech as initialized through user interaction
     speak("Hello, this is a test of the speech system. Can you hear me?", { lang: 'en-US' })
       .then(() => console.log('Test speech completed'))
-      .catch((error) => console.error('Test speech failed:', error));
+      .catch((error: Error) => console.error('Test speech failed:', error));
   };
 
   const handleRepeatQuestion = () => {
@@ -124,7 +125,7 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
       setSpeechInitialized(true); // Initialize speech through user interaction
       speak(question, { lang: 'en-US' })
         .then(() => console.log('Question repeated successfully'))
-        .catch((error) => console.error('Failed to repeat question:', error));
+        .catch((error: Error) => console.error('Failed to repeat question:', error));
     }
   };
 
@@ -133,7 +134,7 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
       const result = await navigator.permissions.query({ name: 'microphone' as PermissionName });
       setMicPermission(result.state);
       console.log('Microphone permission:', result.state);
-    } catch (error) {
+    } catch (error: any) {
       console.log('Could not check microphone permission:', error);
       setMicPermission('unknown');
     }
@@ -172,7 +173,7 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
       await endCall(interviewId);
       await endInterview.mutateAsync(interviewId);
       onInterviewEnded();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error ending interview:", error);
     }
   };
@@ -204,9 +205,10 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
       if (response.isComplete) {
         await handleEndInterview();
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error submitting response:", error);
-    } finally {
+    }
+    finally {
       setIsSubmitting(false);
     }
   };
@@ -214,7 +216,8 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
   const handleVoiceToggle = () => {
     if (isListening) {
       stopListening();
-    } else {
+    }
+    else {
       resetTranscript();
       setCurrentAnswer("");
       startListening();
@@ -286,7 +289,7 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
           <div className="flex items-center space-x-3">
             <div className="w-12 h-12 bg-primary/10 rounded-full flex items-center justify-center">
               <span className="text-lg font-semibold text-primary">
-                {interview.candidateName?.split(' ').map(n => n[0]).join('') || 'N/A'}
+                {interview.candidateName?.split(' ').map((n: string) => n[0]).join('') || 'N/A'}
               </span>
             </div>
             <div>
@@ -363,7 +366,7 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
         </div>
 
         {/* Voice Activity Status */}
-        {useVoiceMode && (
+        {useVoiceMode && ( 
           <div className="flex items-center justify-center space-x-2 p-3 bg-blue-50 rounded-lg border border-blue-200">
             <Volume2 className="h-5 w-5 text-blue-600" />
             <span className="text-sm font-medium text-blue-700">
@@ -394,7 +397,7 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
             </div>
             <Textarea
               value={currentAnswer}
-              onChange={(e) => setCurrentAnswer(e.target.value)}
+              onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setCurrentAnswer(e.target.value)}
               placeholder="Type your answer here... (Speech recognition currently unavailable)"
               className="min-h-[80px] resize-none"
               disabled={isSubmitting}
@@ -414,7 +417,7 @@ export function InterviewSession({ interviewId, onInterviewEnded }: InterviewSes
             <div className="space-y-3">
               <Textarea
                 value={currentAnswer}
-                onChange={(e) => setCurrentAnswer(e.target.value)}
+                onChange={(e: React.ChangeEvent<HTMLTextAreaElement>) => setCurrentAnswer(e.target.value)}
                 placeholder="Type your answer here..."
                 className="min-h-[80px] resize-none"
                 disabled={isSubmitting}

@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { Interview, InsertInterview } from "@shared/schema";
+import { Interview, InsertInterview, InterviewSession, SessionData, InterviewEvaluation } from "@shared/schema";
 
 export function useInterview(id?: number) {
   const queryClient = useQueryClient();
@@ -52,8 +52,8 @@ export function useInterview(id?: number) {
   });
 
   return {
-    interview: interviewQuery.data,
-    session: sessionQuery.data,
+    interview: interviewQuery.data as Interview | undefined,
+    session: sessionQuery.data as InterviewSession | undefined,
     isLoading: interviewQuery.isLoading || sessionQuery.isLoading,
     error: interviewQuery.error || sessionQuery.error,
     createInterview: createInterviewMutation,
@@ -63,11 +63,11 @@ export function useInterview(id?: number) {
 }
 
 export function useInterviews() {
-  const interviewsQuery = useQuery({
+  const interviewsQuery = useQuery<Interview[]>({
     queryKey: ["/api/interviews"],
   });
 
-  const statsQuery = useQuery({
+  const statsQuery = useQuery<{ totalInterviews: number; activeSessions: number; averageScore: number; languagesUsed: number }>({
     queryKey: ["/api/stats"],
   });
 

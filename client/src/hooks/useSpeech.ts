@@ -27,6 +27,7 @@ interface SpeechRecognition extends EventTarget {
   continuous: boolean;
   interimResults: boolean;
   lang: string;
+  maxAlternatives: number; // Add this line
   start(): void;
   stop(): void;
   abort(): void;
@@ -108,13 +109,6 @@ export function useSpeech(options: UseSpeechOptions = {}) {
         }
       });
       
-      recognition.addEventListener('soundstart', () => {
-        console.log('Sound detected by speech recognition');
-      });
-      
-      recognition.addEventListener('soundend', () => {
-        console.log('Sound ended in speech recognition');
-      });
     }
     
     return () => {

@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Mic, ClipboardList, TrendingUp, Languages, Activity, Zap, CheckCircle } from "lucide-react";
 import { InterviewSetup } from "@/components/InterviewSetup";
-import { InterviewSession } from "@/components/InterviewSession";
+import { InterviewSessionComponent } from "@/components/InterviewSession";
 import { InterviewHistory } from "@/components/InterviewHistory";
 import { useInterviews } from "@/hooks/useInterview";
 
@@ -143,7 +143,7 @@ export default function Dashboard() {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Interview Setup or Active Session */}
           {activeInterviewId ? (
-            <InterviewSession 
+            <InterviewSessionComponent 
               interviewId={activeInterviewId}
               onInterviewEnded={handleInterviewEnded}
             />

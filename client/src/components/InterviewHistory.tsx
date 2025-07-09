@@ -7,10 +7,11 @@ import { FileText, Download, Eye } from "lucide-react";
 import { useInterviews } from "@/hooks/useInterview";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Interview, TranscriptEntry } from "@shared/schema";
 
 export function InterviewHistory() {
   const { interviews, isLoading } = useInterviews();
-  const [selectedInterview, setSelectedInterview] = useState<any>(null);
+  const [selectedInterview, setSelectedInterview] = useState<Interview | null>(null);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -64,7 +65,8 @@ export function InterviewHistory() {
     return `${mins}m ${secs}s`;
   };
 
-  const formatDate = (dateString: string) => {
+  const formatDate = (dateString: string | Date | null) => {
+    if (!dateString) return "N/A";
     const date = new Date(dateString);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
@@ -76,14 +78,14 @@ export function InterviewHistory() {
     return date.toLocaleDateString();
   };
 
-  const downloadReport = (interview: any) => {
+  const downloadReport = (interview: Interview) => {
     const reportData = {
       candidate: interview.candidateName,
       language: getLanguageName(interview.language),
       score: interview.score,
       evaluation: interview.evaluation,
       transcript: interview.transcript,
-      date: new Date(interview.createdAt).toLocaleDateString()
+      date: interview.createdAt ? new Date(interview.createdAt).toLocaleDateString() : 'N/A'
     };
     
     const blob = new Blob([JSON.stringify(reportData, null, 2)], { type: 'application/json' });
@@ -137,13 +139,13 @@ export function InterviewHistory() {
                 </tr>
               </thead>
               <tbody>
-                {interviews.slice(0, 10).map((interview) => (
+                {interviews.slice(0, 10).map((interview: Interview) => (
                   <tr key={interview.id} className="border-b border-gray-100">
                     <td className="py-3">
                       <div className="flex items-center space-x-3">
                         <div className="w-8 h-8 bg-primary/10 rounded-full flex items-center justify-center">
                           <span className="text-xs font-medium text-primary">
-                            {interview.candidateName.split(' ').map(n => n[0]).join('')}
+                            {interview.candidateName.split(' ').map((n: string) => n[0]).join('')}
                           </span>
                         </div>
                         <div>
@@ -213,7 +215,7 @@ export function InterviewHistory() {
                                 <div>
                                   <p className="text-sm font-medium text-text-primary mb-2">Transcript</p>
                                   <ScrollArea className="h-40 w-full border rounded p-2">
-                                    {interview.transcript.map((entry, index) => (
+                                    {interview.transcript.map((entry: TranscriptEntry, index: number) => (
                                       <div key={index} className="mb-2">
                                         <span className="text-xs font-medium text-primary">
                                           {entry.speaker === 'ai' ? 'AI' : 'Candidate'}:
@@ -228,7 +230,7 @@ export function InterviewHistory() {
                                 <div>
                                   <p className="text-sm font-medium text-text-primary mb-2">Evaluation</p>
                                   <div className="space-y-2">
-                                    {Object.entries(interview.evaluation.categories).map(([key, value]) => (
+                                    {Object.entries(interview.evaluation.categories).map(([key, value]: [string, number]) => (
                                       <div key={key} className="flex items-center justify-between">
                                         <span className="text-sm text-text-secondary capitalize">
                                           {key.replace(/([A-Z])/g, ' $1').trim()}
